@@ -1,0 +1,446 @@
+openapi: 3.0.0
+info:
+  title: FreshRSS Google Reader API
+  description: An OpenAPI schema for the FreshRSS Google Reader compatible API.
+  version: 1.0.0
+servers:
+  - url: /api/greader.php
+paths:
+  /accounts/ClientLogin:
+    post:
+      summary: Client Login
+      description: Authenticates a user and returns an authentication token.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                Email:
+                  type: string
+                  description: The user's email address.
+                Passwd:
+                  type: string
+                  description: The user's password.
+              required:
+                - Email
+                - Passwd
+      responses:
+        '200':
+          description: Successful authentication.
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: |
+                  SID=...
+                  LSID=...
+                  Auth=...
+        '401':
+          description: Unauthorized.
+  /reader/api/0/token:
+    get:
+      summary: Get Token
+      description: Retrieves an API token for the authenticated user.
+      security:
+        - GoogleLoginAuth: []
+      responses:
+        '200':
+          description: An API token.
+          content:
+            text/plain:
+              schema:
+                type: string
+        '401':
+          description: Unauthorized.
+  /reader/api/0/user-info:
+    get:
+      summary: User Information
+      description: Retrieves information about the authenticated user.
+      security:
+        - GoogleLoginAuth: []
+      responses:
+        '200':
+          description: A JSON object with user information.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  userId:
+                    type: string
+                  userName:
+                    type: string
+                  userProfileId:
+                    type: string
+                  userEmail:
+                    type: string
+        '401':
+          description: Unauthorized.
+  /reader/api/0/tag/list:
+    get:
+      summary: List Tags
+      description: Retrieves a list of user tags (categories and labels).
+      security:
+        - GoogleLoginAuth: []
+      responses:
+        '200':
+          description: A JSON object containing a list of tags.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tags:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [folder, tag]
+                        unread_count:
+                          type: integer
+  /reader/api/0/subscription/list:
+    get:
+      summary: List Subscriptions
+      description: Retrieves a list of the user's subscriptions.
+      security:
+        - GoogleLoginAuth: []
+      responses:
+        '200':
+          description: A JSON object containing a list of subscriptions.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscriptions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Subscription'
+  /reader/api/0/subscription/edit:
+    post:
+      summary: Edit Subscription
+      description: Add, remove, or edit a subscription.
+      security:
+        - GoogleLoginAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                s:
+                  type: string
+                  description: Stream ID of the subscription.
+                ac:
+                  type: string
+                  enum: [subscribe, unsubscribe, edit]
+                  description: The action to perform.
+                t:
+                  type: string
+                  description: The new title for the subscription.
+                a:
+                  type: string
+                  description: The category to add the subscription to.
+                r:
+                  type: string
+                  description: The category to remove the subscription from.
+      responses:
+        '200':
+          description: OK
+        '400':
+          description: Bad Request
+  /reader/api/0/subscription/quickadd:
+    post:
+      summary: Quick Add Subscription
+      description: Quickly adds a new subscription.
+      security:
+        - GoogleLoginAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                quickadd:
+                  type: string
+                  description: The URL of the feed to add.
+      responses:
+        '200':
+          description: A JSON object with information about the new subscription.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  numResults:
+                    type: integer
+                  query:
+                    type: string
+                  streamId:
+                    type: string
+                  streamName:
+                    type: string
+        '400':
+          description: Bad Request
+  /reader/api/0/unread-count:
+    get:
+      summary: Unread Count
+      description: Retrieves the number of unread items for subscriptions and tags.
+      security:
+        - GoogleLoginAuth: []
+      responses:
+        '200':
+          description: A JSON object with unread counts.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  max:
+                    type: integer
+                  unreadcounts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        count:
+                          type: integer
+                        newestItemTimestampUsec:
+                          type: string
+  /reader/api/0/stream/contents/{streamId}:
+    get:
+      summary: Get Stream Contents
+      description: Retrieves the contents of a stream (feed, folder, or tag).
+      security:
+        - GoogleLoginAuth: []
+      parameters:
+        - name: streamId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the stream.
+        - name: n
+          in: query
+          schema:
+            type: integer
+            default: 20
+          description: The number of items to return.
+        - name: r
+          in: query
+          schema:
+            type: string
+            enum: [d, o]
+            default: d
+          description: Sort order (d=desc, o=asc).
+        - name: xt
+          in: query
+          schema:
+            type: string
+          description: Exclude target.
+        - name: c
+          in: query
+          schema:
+            type: string
+          description: Continuation token.
+      responses:
+        '200':
+          description: A JSON object with stream items.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Stream'
+  /reader/api/0/stream/items/ids:
+    get:
+      summary: Get Stream Item IDs
+      description: Retrieves the IDs of items in a stream.
+      security:
+        - GoogleLoginAuth: []
+      parameters:
+        - name: s
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The ID of the stream.
+        - name: n
+          in: query
+          schema:
+            type: integer
+            default: 1000
+          description: The number of item IDs to return.
+        - name: c
+          in: query
+          schema:
+            type: string
+          description: Continuation token.
+      responses:
+        '200':
+          description: A JSON object with item IDs and a continuation token.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  itemRefs:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                  continuation:
+                    type: string
+  /reader/api/0/edit-tag:
+    post:
+      summary: Edit Item Tag
+      description: Adds or removes a tag for one or more items.
+      security:
+        - GoogleLoginAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                i:
+                  type: array
+                  items:
+                    type: string
+                  description: Item ID(s) to modify.
+                a:
+                  type: string
+                  description: Tag to add.
+                r:
+                  type: string
+                  description: Tag to remove.
+                T:
+                  type: string
+                  description: API token.
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+  /reader/api/0/mark-all-as-read:
+    post:
+      summary: Mark All as Read
+      description: Marks all items in a stream as read.
+      security:
+        - GoogleLoginAuth: []
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                s:
+                  type: string
+                  description: The stream ID to mark as read.
+                ts:
+                  type: string
+                  description: Timestamp to mark items older than.
+                T:
+                  type: string
+                  description: API token.
+      responses:
+        '200':
+          description: OK
+        '401':
+          description: Unauthorized
+components:
+  schemas:
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        categories:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+        url:
+          type: string
+        htmlUrl:
+          type: string
+        iconUrl:
+          type: string
+    Stream:
+      type: object
+      properties:
+        id:
+          type: string
+        updated:
+          type: integer
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/StreamItem'
+        continuation:
+          type: string
+    StreamItem:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        published:
+          type: integer
+        updated:
+          type: integer
+        canonical:
+          type: array
+          items:
+            type: object
+            properties:
+              href:
+                type: string
+        alternate:
+          type: array
+          items:
+            type: object
+            properties:
+              href:
+                type: string
+              type:
+                type: string
+        summary:
+          type: object
+          properties:
+            direction:
+              type: string
+            content:
+              type: string
+        author:
+          type: string
+        origin:
+          type: object
+          properties:
+            streamId:
+              type: string
+            title:
+              type: string
+            htmlUrl:
+              type: string
+  securitySchemes:
+    GoogleLoginAuth:
+      type: apiKey
+      in: header
+      name: Authorization
+      description: "Authentication token with 'GoogleLogin auth=' prefix."
