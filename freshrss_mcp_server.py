@@ -108,7 +108,8 @@ async def _api_request(method: str, url_path: str, **kwargs) -> Dict[str, Any]:
     url = urljoin(config.base_url, url_path)
 
     # For POST requests that need the API token, add it to the data payload
-    if method.upper() == 'POST' and kwargs.get("requires_token"):
+    requires_token = kwargs.pop("requires_token", False)
+    if method.upper() == 'POST' and requires_token:
         data = kwargs.get("data", {})
         if not config.api_token:
             return {"error": "Missing API token for POST request."}
