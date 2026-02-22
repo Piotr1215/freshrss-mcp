@@ -39,7 +39,12 @@ class FreshRSSConfig:
 
     async def get_session(self) -> aiohttp.ClientSession:
         if self.session is None or self.session.closed:
-            self.session = aiohttp.ClientSession()
+            import ssl
+            ssl_ctx = ssl.create_default_context()
+            ssl_ctx.check_hostname = False
+            ssl_ctx.verify_mode = ssl.CERT_NONE
+            connector = aiohttp.TCPConnector(ssl=ssl_ctx)
+            self.session = aiohttp.ClientSession(connector=connector)
         return self.session
 
     def get_headers(self) -> Dict[str, str]:
@@ -109,6 +114,12 @@ async def _api_request(method: str, url_path: str, **kwargs) -> Dict[str, Any]:
             return {"error": "Missing API token for POST request."}
         data["T"] = config.api_token
         kwargs["data"] = data
+
+    # Ensure JSON output for GET requests
+    if method.upper() == 'GET':
+        params = kwargs.pop("params", {})
+        params["output"] = "json"
+        kwargs["params"] = params
 
     async def perform_request():
         return await session.request(method, url, headers=config.get_headers(), **kwargs)
